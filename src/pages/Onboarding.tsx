@@ -45,11 +45,21 @@ export default function Onboarding() {
       return;
     }
 
-    setLoading(true);
+    const nameParts = form.fullName.trim().split(" ");
+    if (nameParts.length < 2) {
+      toast({ 
+        title: "Incomplete Name", 
+        description: "Please provide both your First Name and Last Name.", 
+        variant: "destructive" 
+      });
+      setLoading(false);
+      return;
+    }
+
     const { error } = await supabase
       .from("profiles")
       .update({
-        full_name: form.fullName,
+        full_name: form.fullName.trim(),
         designation: form.designation,
         department: form.department,
         onboarded: true,
@@ -81,13 +91,18 @@ export default function Onboarding() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
+                <Label htmlFor="fullName" className="flex justify-between">
+                  Full Name
+                  <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Required</span>
+                </Label>
                 <Input 
                   id="fullName" 
                   value={form.fullName} 
                   onChange={(e) => setForm({ ...form, fullName: e.target.value })} 
-                  placeholder="John Doe"
+                  placeholder="e.g. John Doe"
+                  className="border-primary/20 focus-visible:ring-primary"
                 />
+                <p className="text-[10px] text-muted-foreground italic">Your name will be used on official attendance reports.</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="designation">Designation</Label>

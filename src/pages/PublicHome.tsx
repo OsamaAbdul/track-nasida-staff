@@ -21,7 +21,8 @@ import {
   ShieldCheck, 
   MapPin, 
   ChevronRight,
-  ArrowRight
+  ArrowRight,
+  RefreshCw
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,46 @@ export default function PublicHome() {
   }, []);
 
   const isWeekend = (office as any)?.working_days ? !(office as any).working_days.includes(time.getDay()) : (time.getDay() === 0 || time.getDay() === 6);
+
+  // Helper to calculate distance in meters
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371e3; // Earth radius in meters
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Distance in meters
+  };
+
+  const distanceMeters = coords && office?.latitude && office?.longitude 
+    ? calculateDistance(coords.lat, coords.lng, office.latitude, office.longitude)
+    : null;
+
+  const isInRange = distanceMeters !== null && office?.radius_meters 
+    ? distanceMeters <= office.radius_meters 
+    : false;
+
+  const refreshLocation = () => {
+    setCoords(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (err) => {
+        console.error("Geolocation error:", err);
+        toast({
+          title: "Location Error",
+          description: "Could not retrieve your current location. Please check your GPS settings.",
+          variant: "destructive",
+        });
+      },
+      { enableHighAccuracy: true }
+    );
+  };
 
   const handleFaceIdentify = async (descriptor: Float32Array) => {
     setLoading(true);
@@ -142,11 +183,65 @@ export default function PublicHome() {
                   </p>
                 </div>
 
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <MapPin className="h-4 w-4 text-primary" />
-                    {coords ? "Office Geofence Detected" : "Detecting Location..."}
+                {/* Geofence Diagnostic Panel */}
+                <div className="space-y-4 p-4 rounded-xl bg-muted/30 border border-primary/5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                      <MapPin className="h-3 w-3 text-primary" />
+                      Geofence Status
+                    </div>
+                    {distanceMeters !== null && (
+                      <div className={cn(
+                        "px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tighter border",
+                        isInRange 
+                          ? "bg-green-500/10 text-green-500 border-green-500/20" 
+                          : "bg-red-500/10 text-red-500 border-red-500/20"
+                      )}>
+                        {isInRange ? "In Range" : "Out of Range"}
+                      </div>
+                    )}
                   </div>
+
+                  {coords ? (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground/60">Current distance</p>
+                        <p className="text-xl font-black font-mono">
+                          {distanceMeters !== null ? (
+                            distanceMeters < 1000 
+                              ? `${Math.round(distanceMeters)}m` 
+                              : `${(distanceMeters / 1000).toFixed(2)}km`
+                          ) : '---'}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground/60">Allowed Radius</p>
+                        <p className="text-xl font-black font-mono text-primary/60">
+                          {office?.radius_meters ? `${office.radius_meters}m` : '---'}
+                        </p>
+                      </div>
+                      <div className="col-span-2 pt-2 border-t border-primary/5">
+                        <div className="flex items-center justify-between text-[10px] font-medium text-muted-foreground/80">
+                          <span>Your Lat: {coords.lat.toFixed(6)}</span>
+                          <span>Your Lng: {coords.lng.toFixed(6)}</span>
+                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={refreshLocation}
+                          className="w-full mt-2 h-7 text-[10px] font-black uppercase tracking-widest border border-primary/10 hover:bg-primary/5"
+                        >
+                          <RefreshCw className="h-3 w-3 mr-2" />
+                          Refresh Location
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-4 gap-2">
+                       <RefreshCw className="h-5 w-5 animate-spin text-primary/40" />
+                       <p className="text-xs font-bold text-muted-foreground animate-pulse uppercase tracking-widest">Detecting GPS Coordinates...</p>
+                    </div>
+                  )}
                 </div>
               </div>
 

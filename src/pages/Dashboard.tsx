@@ -115,7 +115,7 @@ export default function Dashboard() {
         <div>
           <h1 className="text-2xl font-bold font-display">
             Good {today.getHours() < 12 ? "Morning" : today.getHours() < 17 ? "Afternoon" : "Evening"},{" "}
-            {profile?.full_name?.split(" ")[0] || "there"}!
+            {profile?.full_name || "Valued Staff Member"}!
           </h1>
           <p className="text-muted-foreground">{format(today, "EEEE, MMMM d, yyyy")}</p>
         </div>
