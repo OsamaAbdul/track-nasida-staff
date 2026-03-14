@@ -19,7 +19,7 @@
 ### Configurable Operations
 *   **Dynamic Workdays**: Admins can configure open/closed days (e.g., Mon-Fri).
 *   **Global Presence**: Unified management for multiple office locations.
-*   **Premium Reporting**: Printer-friendly, professional attendance reports with watermarking.
+*   **Premium Reporting**: Printer-friendly, professional attendance reports with watermarking
 
 ---
 
