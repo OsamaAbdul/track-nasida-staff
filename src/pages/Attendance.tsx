@@ -26,9 +26,16 @@ export default function Attendance() {
   const { data: office } = useQuery({
     queryKey: ["office-location"],
     queryFn: async () => {
-      const { data } = await supabase.from("office_locations").select("*").eq('is_active', true).limit(1).maybeSingle();
+      const { data } = await supabase
+        .from("office_locations")
+        .select("*")
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
       return data;
-    }
+    },
+    refetchInterval: 5000,
   });
 
   const isWeekend = (office as any)?.working_days ? !(office as any).working_days.includes(today.getDay()) : (today.getDay() === 0 || today.getDay() === 6);

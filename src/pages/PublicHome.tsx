@@ -26,7 +26,10 @@ import {
   Wifi,
   WifiOff,
   QrCode,
-  Scan
+  Scan,
+  AlertTriangle,
+  CheckCircle,
+  Check
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -34,7 +37,7 @@ import { Html5Qrcode } from "html5-qrcode";
 import { db } from "@/lib/offline-db";
 import { motion } from "framer-motion";
 
-import { CheckCircle } from "lucide-react";
+
 
 export default function PublicHome() {
   const [time, setTime] = useState(new Date());
@@ -58,7 +61,8 @@ export default function PublicHome() {
         .limit(1)
         .maybeSingle();
       return data;
-    }
+    },
+    refetchInterval: 5000, // Poll every 5s for cross-device sync
   });
 
   useEffect(() => {
@@ -409,35 +413,55 @@ export default function PublicHome() {
                   {coords ? (
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
-                        <p className="text-[10px] font-bold uppercase text-muted-foreground/60">Current distance</p>
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground/60">Device Latitude</p>
                         <p className="text-xl font-black font-mono">
+                          {coords.lat.toFixed(6)}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground/60">Device Longitude</p>
+                        <p className="text-xl font-black font-mono">
+                          {coords.lng.toFixed(6)}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground/60">Current distance</p>
+                        <p className="text-xl font-black font-mono text-primary">
                           {distanceMeters !== null ? (
                             distanceMeters < 1000
                               ? `${Math.round(distanceMeters)}m`
                               : `${(distanceMeters / 1000).toFixed(2)}km`
                           ) : '---'}
                         </p>
+                        <p className="text-[9px] font-bold uppercase tracking-tight text-muted-foreground/60">
+                          Target: {office?.radius_meters ? `${office.radius_meters}m` : '---'} + 15m buffer
+                        </p>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-[10px] font-bold uppercase text-muted-foreground/60">Office Location (DB)</p>
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground/60">Office Location (Latest DB)</p>
                         <p className="text-xl font-black font-mono">
                           {office?.latitude ? `${office.latitude.toFixed(6)}, ${office.longitude.toFixed(6)}` : '---'}
                         </p>
                         {office?.name && <p className="text-[9px] font-bold text-primary/40 uppercase tracking-widest">{office.name}</p>}
                       </div>
-                      <div className="col-span-2 pt-2 border-t border-primary/5 space-y-1">
-                        <div className="flex items-center justify-between text-[10px] font-medium text-muted-foreground/80">
-                          <span>Lat: {coords.lat.toFixed(6)}</span>
-                          <span>Lng: {coords.lng.toFixed(6)}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[10px] font-bold">
-                          <span className="text-muted-foreground/60 uppercase">Signal Accuracy</span>
+                      <div className="col-span-2 pt-2 border-t border-primary/5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold uppercase text-muted-foreground/60">Signal Accuracy</span>
                           <span className={cn(
+                            "text-sm font-black font-mono",
                             coords.accuracy < 20 ? "text-green-500" : coords.accuracy < 50 ? "text-warning" : "text-destructive"
                           )}>
                             ±{Math.round(coords.accuracy)}m
                           </span>
                         </div>
+                        {coords.accuracy > (office?.radius_meters || 100) / 2 && (
+                          <div className="p-2 bg-warning/10 border border-warning/20 rounded-lg flex items-start gap-2">
+                            <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
+                            <p className="text-[9px] font-bold text-warning-foreground uppercase leading-tight">
+                              Warning: Poor GPS accuracy. <br/> Your device location might be unreliable.
+                            </p>
+                          </div>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -445,7 +469,7 @@ export default function PublicHome() {
                           className="w-full mt-2 h-7 text-[10px] font-black uppercase tracking-widest border border-primary/10 hover:bg-primary/5"
                         >
                           <RefreshCw className="h-3 w-3 mr-2" />
-                          Refresh Location
+                          Refresh My Location
                         </Button>
                       </div>
                     </div>

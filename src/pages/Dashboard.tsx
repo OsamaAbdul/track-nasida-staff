@@ -28,7 +28,7 @@ export default function Dashboard() {
   const downloadAsImage = async () => {
     if (!qrRef.current) return;
     try {
-      const dataUrl = await toPng(qrRef.current, { backgroundColor: '#ffffff', padding: 20 });
+      const dataUrl = await toPng(qrRef.current, { backgroundColor: '#ffffff' });
       const link = document.createElement('a');
       link.download = `nasida-qr-${profile?.full_name?.replace(/\s+/g, '-').toLowerCase()}.png`;
       link.href = dataUrl;
@@ -43,7 +43,7 @@ export default function Dashboard() {
   const downloadAsPDF = async () => {
     if (!qrRef.current) return;
     try {
-      const dataUrl = await toPng(qrRef.current, { backgroundColor: '#ffffff', padding: 20 });
+      const dataUrl = await toPng(qrRef.current, { backgroundColor: '#ffffff' });
       const pdf = new jsPDF();
       const imgProps = pdf.getImageProperties(dataUrl);
       const pdfWidth = pdf.internal.pageSize.getWidth();

@@ -36,7 +36,8 @@ export default function AdminStaff() {
         .limit(1)
         .maybeSingle();
       return data;
-    }
+    },
+    refetchInterval: 5000,
   });
 
   const [officeForm, setOfficeForm] = useState({
