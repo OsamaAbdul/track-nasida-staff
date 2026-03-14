@@ -28,7 +28,13 @@ export default function AdminStaff() {
   const { data: office, refetch: refetchOffice } = useQuery({
     queryKey: ["office-location"],
     queryFn: async () => {
-      const { data } = await supabase.from("office_locations").select("*").eq('is_active', true).limit(1).maybeSingle();
+      const { data } = await supabase
+        .from("office_locations")
+        .select("*")
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
       return data;
     }
   });

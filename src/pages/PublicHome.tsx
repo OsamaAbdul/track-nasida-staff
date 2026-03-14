@@ -47,10 +47,16 @@ export default function PublicHome() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const { data: office } = useQuery({
+  const { data: office, refetch: refetchOffice } = useQuery({
     queryKey: ["office-location"],
     queryFn: async () => {
-      const { data } = await supabase.from("office_locations").select("*").eq('is_active', true).limit(1).maybeSingle();
+      const { data } = await supabase
+        .from("office_locations")
+        .select("*")
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
       return data;
     }
   });
@@ -413,10 +419,11 @@ export default function PublicHome() {
                         </p>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-[10px] font-bold uppercase text-muted-foreground/60">Allowed Radius</p>
-                        <p className="text-xl font-black font-mono text-primary/60">
-                          {office?.radius_meters ? `${office.radius_meters}m` : '---'}
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground/60">Office Location (DB)</p>
+                        <p className="text-xl font-black font-mono">
+                          {office?.latitude ? `${office.latitude.toFixed(6)}, ${office.longitude.toFixed(6)}` : '---'}
                         </p>
+                        {office?.name && <p className="text-[9px] font-bold text-primary/40 uppercase tracking-widest">{office.name}</p>}
                       </div>
                       <div className="col-span-2 pt-2 border-t border-primary/5 space-y-1">
                         <div className="flex items-center justify-between text-[10px] font-medium text-muted-foreground/80">
