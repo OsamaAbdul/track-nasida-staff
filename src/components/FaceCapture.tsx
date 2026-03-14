@@ -47,6 +47,12 @@ const FaceCapture: React.FC<FaceCaptureProps> = ({ onCapture, mode }) => {
     if (isModelLoaded && !isCapturing) {
       startVideo();
     }
+    return () => {
+      if (videoRef.current?.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
   }, [isModelLoaded]);
 
   useEffect(() => {

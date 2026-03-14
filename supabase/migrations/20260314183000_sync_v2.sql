@@ -111,17 +111,25 @@ BEGIN
   -- H. Record Attendance
   INSERT INTO public.attendance_logs (
     user_id, 
+    office_id,
     check_in_at, 
     location, 
+    latitude,
+    longitude,
     status, 
-    face_match_score
+    face_match_score,
+    verification_method
   )
   VALUES (
     v_user_id, 
+    v_office_id,
     v_now, 
     ST_SetSRID(ST_MakePoint(p_longitude, p_latitude), 4326)::geography, 
+    p_latitude,
+    p_longitude,
     v_status, 
-    v_match_score
+    v_match_score,
+    'face'
   );
 
   RETURN jsonb_build_object(
