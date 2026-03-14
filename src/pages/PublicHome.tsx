@@ -26,12 +26,15 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { db } from "@/lib/offline-db";
+import { Wifi, WifiOff } from "lucide-react";
 
 export default function PublicHome() {
   const [time, setTime] = useState(new Date());
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+   const [coords, setCoords] = useState<{ lat: number; lng: number, accuracy: number } | null>(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -46,14 +49,73 @@ export default function PublicHome() {
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     
-    // Get location early
+     // Get location early
     navigator.geolocation.getCurrentPosition(
-      (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      (err) => console.error("Geolocation error:", err)
+      (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+      (err) => console.error("Geolocation error:", err),
+      { enableHighAccuracy: true }
     );
 
-    return () => clearInterval(timer);
+    // Sync cache if online
+    const syncCache = async () => {
+      if (navigator.onLine) {
+        try {
+          const { data: profiles } = await supabase.from("profiles").select("user_id, full_name, face_embedding").eq("face_enrolled", true);
+          if (profiles) {
+            await db.profiles.clear();
+            await db.profiles.bulkAdd(profiles as any);
+            console.log("Offline cache synced");
+          }
+        } catch (e) {
+          console.error("Failed to sync cache", e);
+        }
+      }
+    };
+    syncCache();
+
+    // Monitor connectivity
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
   }, []);
+
+  // Auto-sync pending logs when online
+  useEffect(() => {
+    const syncPending = async () => {
+      if (isOnline) {
+        const pending = await db.attendance_logs.where("synced").equals(0).toArray();
+        if (pending.length > 0) {
+          console.log(`Syncing ${pending.length} pending logs...`);
+          for (const log of pending) {
+            try {
+              const { data, error } = await supabase.rpc('identify_and_check_in', {
+                p_descriptor: log.face_embedding as any, // We need to store descriptor in log too or just use the found user_id?
+                // Actually, our RPC requires descriptor for the "Search" part. 
+                // If we already identified them offline, should we have a "check_in_direct" RPC?
+                // Let's stick to identify_and_check_in for consistency, but we need the descriptor.
+                p_latitude: log.latitude,
+                p_longitude: log.longitude
+              });
+              if (!error && data.success) {
+                await db.attendance_logs.update(log.id!, { synced: true });
+              }
+            } catch (e) {
+              console.error("Sync failed for log", log.id, e);
+            }
+          }
+          toast({ title: "Sync Complete", description: `${pending.length} offline records pushed to server.` });
+        }
+      }
+    };
+    syncPending();
+  }, [isOnline]);
 
   const isWeekend = (office as any)?.working_days ? !(office as any).working_days.includes(time.getDay()) : (time.getDay() === 0 || time.getDay() === 6);
 
@@ -78,13 +140,13 @@ export default function PublicHome() {
     : null;
 
   const isInRange = distanceMeters !== null && office?.radius_meters 
-    ? distanceMeters <= office.radius_meters 
+    ? distanceMeters <= (office.radius_meters + 15) // 15m buffer for indoor jitter
     : false;
 
   const refreshLocation = () => {
     setCoords(null);
     navigator.geolocation.getCurrentPosition(
-      (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
       (err) => {
         console.error("Geolocation error:", err);
         toast({
@@ -97,37 +159,80 @@ export default function PublicHome() {
     );
   };
 
-  const handleFaceIdentify = async (descriptor: Float32Array) => {
+   const handleFaceIdentify = async (descriptor: Float32Array) => {
     setLoading(true);
     try {
       if (!coords) {
         throw new Error("Location access is required for attendance. Please enable GPS.");
       }
 
-      // We'll use a new RPC that identifies the user from the descriptor
-      // Pass the descriptor as a float8 array
-      const { data, error } = await supabase.rpc('identify_and_check_in', {
-        p_descriptor: Array.from(descriptor),
-        p_latitude: coords.lat,
-        p_longitude: coords.lng
-      });
-
-      if (error) throw error;
-
-      if (data.success) {
-        toast({
-          title: `Welcome, ${data.full_name}!`,
-          description: data.message || "Attendance recorded successfully.",
-          className: "bg-green-50 border-green-200",
+      if (isOnline) {
+        // Online: Use robust server-side RPC
+        const { data, error } = await supabase.rpc('identify_and_check_in', {
+          p_descriptor: Array.from(descriptor),
+          p_latitude: coords.lat,
+          p_longitude: coords.lng
         });
-        setIsOpen(false);
+
+        if (error) throw error;
+
+        if (data.success) {
+          toast({
+            title: `Welcome, ${data.full_name}!`,
+            description: data.message || "Attendance recorded successfully.",
+            className: "bg-green-50 border-green-200",
+          });
+          setIsOpen(false);
+        } else {
+          toast({
+            title: "Check-in Failed",
+            description: data.message,
+            variant: "destructive",
+          });
+        }
       } else {
-        const debugDist = data.debug_distance_meters;
-        toast({
-          title: "Check-in Failed",
-          description: `${data.message}${debugDist ? ` (System thinks you are ${debugDist}km away. Your GPS: ${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)})` : ''}`,
-          variant: "destructive",
-        });
+        // Offline: Local Euclidean search
+        const profiles = await db.profiles.toArray();
+        let bestMatch = null;
+        let minDistance = 0.6; // Threshold matching our RPC logic (~0.6 score = ~0.4 dist)
+
+        for (const profile of profiles) {
+          const dist = Math.sqrt(
+            profile.face_embedding.reduce((acc, val, i) => acc + Math.pow(val - descriptor[i], 2), 0)
+          );
+          if (dist < minDistance) {
+            minDistance = dist;
+            bestMatch = profile;
+          }
+        }
+
+        if (bestMatch) {
+          // Record locally
+          await db.attendance_logs.add({
+            user_id: bestMatch.user_id,
+            full_name: bestMatch.full_name,
+            check_in_at: new Date().toISOString(),
+            latitude: coords.lat,
+            longitude: coords.lng,
+            status: new Date().getHours() < 9 ? 'present' : 'late',
+            match_score: 1 - minDistance,
+            synced: false,
+            face_embedding: Array.from(descriptor) as any // Store to re-verify during sync if needed
+          } as any);
+
+          toast({
+            title: "Offline Check-in Saved",
+            description: `Hello, ${bestMatch.full_name}. You are checked in locally and will sync when online.`,
+            className: "bg-amber-50 border-amber-200",
+          });
+          setIsOpen(false);
+        } else {
+          toast({
+            title: "Offline Recognition Failed",
+            description: "Face not recognized in local cache. Please sync once online.",
+            variant: "destructive",
+          });
+        }
       }
     } catch (err: any) {
       toast({
@@ -220,10 +325,18 @@ export default function PublicHome() {
                           {office?.radius_meters ? `${office.radius_meters}m` : '---'}
                         </p>
                       </div>
-                      <div className="col-span-2 pt-2 border-t border-primary/5">
+                      <div className="col-span-2 pt-2 border-t border-primary/5 space-y-1">
                         <div className="flex items-center justify-between text-[10px] font-medium text-muted-foreground/80">
-                          <span>Your Lat: {coords.lat.toFixed(6)}</span>
-                          <span>Your Lng: {coords.lng.toFixed(6)}</span>
+                          <span>Lat: {coords.lat.toFixed(6)}</span>
+                          <span>Lng: {coords.lng.toFixed(6)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] font-bold">
+                          <span className="text-muted-foreground/60 uppercase">Signal Accuracy</span>
+                          <span className={cn(
+                            coords.accuracy < 20 ? "text-green-500" : coords.accuracy < 50 ? "text-warning" : "text-destructive"
+                          )}>
+                            ±{Math.round(coords.accuracy)}m
+                          </span>
                         </div>
                         <Button 
                           variant="ghost" 
@@ -304,10 +417,16 @@ export default function PublicHome() {
 
             <div className="p-6 border rounded-2xl bg-muted/30 border-dashed flex items-center justify-between opacity-60 hover:opacity-100 transition-opacity">
               <div className="flex items-center gap-3">
-                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Admin Oversight Active</span>
+                <div className={cn(
+                  "h-2 w-2 rounded-full animate-pulse",
+                  isOnline ? "bg-green-500" : "bg-amber-500"
+                )} />
+                <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  {isOnline ? <Wifi className="h-3 w-3 text-green-500" /> : <WifiOff className="h-3 w-3 text-amber-500" />}
+                  {isOnline ? "Cloud Connected" : "Local-Only Mode"}
+                </span>
               </div>
-              <p className="text-[10px] font-medium text-muted-foreground italic">V 2.1.0-STABLE</p>
+              <p className="text-[10px] font-medium text-muted-foreground italic tracking-widest uppercase">V 2.2.0-STABLE</p>
             </div>
           </div>
         </div>

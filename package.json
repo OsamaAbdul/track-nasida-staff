@@ -47,6 +47,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^3.6.0",
+    "dexie": "^4.3.0",
     "embla-carousel-react": "^8.6.0",
     "face-api.js": "^0.22.2",
     "framer-motion": "^12.36.0",
@@ -64,6 +65,7 @@
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
+    "vite-plugin-pwa": "^1.2.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {

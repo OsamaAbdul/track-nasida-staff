@@ -9,6 +9,10 @@
 ALTER TABLE public.office_locations 
 ADD COLUMN IF NOT EXISTS working_days INTEGER[] DEFAULT '{1,2,3,4,5}';
 
+-- 1.5. Clean up old function variants to avoid ambiguity
+DROP FUNCTION IF EXISTS public.identify_and_check_in(REAL[], DOUBLE PRECISION, DOUBLE PRECISION);
+DROP FUNCTION IF EXISTS public.identify_and_check_in(DOUBLE PRECISION[], DOUBLE PRECISION, DOUBLE PRECISION);
+
 -- 2. Comprehensive Identification & Check-in RPC
 -- This function handles:
 --  - AI Face Matching (Euclidean distance)

@@ -232,7 +232,7 @@ export default function AdminStaff() {
                 <MapPin className="h-5 w-5 text-primary" />
                 Office Location
               </CardTitle>
-              <CardDescription>Configure geofence and work hours</CardDescription>
+              <CardDescription>Configure geofence and work hours (Min 100m recommended for stability)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {office ? (
