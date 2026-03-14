@@ -32,7 +32,7 @@ export default function AdminStaff() {
         .from("office_locations")
         .select("*")
         .eq('is_active', true)
-        .order('created_at', { ascending: false })
+        .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
       return data;
@@ -261,8 +261,20 @@ export default function AdminStaff() {
                           className="h-6 text-[10px] font-bold uppercase tracking-tighter"
                           onClick={() => {
                             navigator.geolocation.getCurrentPosition(
-                              (pos) => setOfficeForm(prev => ({ ...prev, lat: pos.coords.latitude, lng: pos.coords.longitude })),
-                              (err) => toast({ title: "Portal Error", description: "Enable location access to detect coordinates.", variant: "destructive" })
+                              (pos) => {
+                                setOfficeForm(prev => ({ ...prev, lat: pos.coords.latitude, lng: pos.coords.longitude }));
+                                if (pos.coords.accuracy > 50) {
+                                  toast({ 
+                                    title: "Low Accuracy Warning", 
+                                    description: `Your current device is only accurate to ±${Math.round(pos.coords.accuracy)}m. Setting coordinates here might cause \"Out of Range\" errors on phones.`,
+                                    variant: "warning" as any
+                                  });
+                                } else {
+                                  toast({ title: "Coordinates Detected", description: "Office location updated with current GPS." });
+                                }
+                              },
+                              (err) => toast({ title: "Portal Error", description: "Enable location access to detect coordinates.", variant: "destructive" }),
+                              { enableHighAccuracy: true }
                             );
                           }}
                         >
@@ -275,6 +287,9 @@ export default function AdminStaff() {
                         value={officeForm.lat}
                         onChange={e => setOfficeForm({ ...officeForm, lat: parseFloat(e.target.value) })}
                       />
+                      <p className="text-[9px] text-warning font-medium leading-tight px-1 uppercase italic">
+                        ⚠️ Recommendation: Always use a Mobile Phone to "Detect" office coordinates for maximum precision.
+                      </p>
                     </div>
                     <div className="space-y-2">
                       <Label>Longitude</Label>

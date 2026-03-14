@@ -7,8 +7,9 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, startOfDay, endOfDay, subDays } from "date-fns";
-import { Clock, MapPin, Camera, CheckCircle, LogOut as LogOutIcon } from "lucide-react";
+import { Clock, MapPin, Camera, CheckCircle, LogOut as LogOutIcon, AlertTriangle, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import FaceCapture from "@/components/FaceCapture";
 import * as faceapi from 'face-api.js';
@@ -19,7 +20,7 @@ export default function Attendance() {
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [showFaceCapture, setShowFaceCapture] = useState(false);
-  const [coords, setCoords] = useState<{ lat: number, lng: number } | null>(null);
+  const [coords, setCoords] = useState<{ lat: number; lng: number, accuracy: number } | null>(null);
 
   const today = new Date();
   // Today's log
@@ -30,7 +31,7 @@ export default function Attendance() {
         .from("office_locations")
         .select("*")
         .eq('is_active', true)
-        .order('created_at', { ascending: false })
+        .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
       return data;
@@ -41,6 +42,30 @@ export default function Attendance() {
   const isWeekend = (office as any)?.working_days ? !(office as any).working_days.includes(today.getDay()) : (today.getDay() === 0 || today.getDay() === 6);
   const todayStart = startOfDay(today).toISOString();
   const todayEnd = endOfDay(today).toISOString();
+
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371000; // Earth's radius in meters
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) *
+      Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Distance in meters
+  };
+
+  const distanceMeters = coords && office?.latitude && office?.longitude
+    ? calculateDistance(coords.lat, coords.lng, office.latitude, office.longitude)
+    : null;
+
+  const isInRange = distanceMeters !== null && office?.radius_meters
+    ? distanceMeters <= (office.radius_meters + 15) // 15m buffer
+    : false;
 
   // Today's log
   const { data: todayLog, refetch: refetchToday } = useQuery({
@@ -86,8 +111,8 @@ export default function Attendance() {
         });
       });
 
-      const { latitude, longitude } = position.coords;
-      setCoords({ lat: latitude, lng: longitude });
+      const { latitude, longitude, accuracy } = position.coords;
+      setCoords({ lat: latitude, lng: longitude, accuracy });
 
       if (profile?.face_enrolled) {
         setShowFaceCapture(true);
@@ -256,6 +281,76 @@ export default function Attendance() {
                         </Button>
                       </div>
                     )}
+
+                    {/* Diagnostic Info */}
+                    <div className="mt-8 border-t pt-6 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase text-muted-foreground/60 tracking-widest">Geofence Diagnostics</span>
+                        {distanceMeters !== null && (
+                          <Badge variant={isInRange ? "success" : "destructive"} className="text-[10px] h-5">
+                            {isInRange ? "In Range" : "Out of Range"}
+                          </Badge>
+                        )}
+                      </div>
+
+                      {coords ? (
+                        <div className="grid grid-cols-2 gap-4 text-left">
+                          <div className="space-y-1">
+                            <p className="text-[9px] font-bold uppercase text-muted-foreground/60">Device Latitude</p>
+                            <p className="text-sm font-black font-mono tracking-tight">{coords.lat.toFixed(6)}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[9px] font-bold uppercase text-muted-foreground/60">Device Longitude</p>
+                            <p className="text-sm font-black font-mono tracking-tight">{coords.lng.toFixed(6)}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[9px] font-bold uppercase text-muted-foreground/60">Distance to Office</p>
+                            <p className="text-sm font-black font-mono tracking-tight text-primary">
+                              {distanceMeters !== null ? (distanceMeters < 1000 ? `${Math.round(distanceMeters)}m` : `${(distanceMeters/1000).toFixed(2)}km`) : '---'}
+                            </p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[9px] font-bold uppercase text-muted-foreground/60">Signal Accuracy</p>
+                            <p className={cn(
+                              "text-sm font-black font-mono tracking-tight",
+                              coords.accuracy < 20 ? "text-green-500" : coords.accuracy < 50 ? "text-warning" : "text-destructive"
+                            )}>
+                              ±{Math.round(coords.accuracy)}m
+                            </p>
+                          </div>
+                          <div className="col-span-2 space-y-1">
+                            <p className="text-[9px] font-bold uppercase text-muted-foreground/60">Office Location (Latest Sync)</p>
+                            <p className="text-xs font-bold font-mono text-muted-foreground">
+                              {office?.latitude ? `${office.latitude.toFixed(6)}, ${office.longitude.toFixed(6)}` : 'Detecting...'}
+                            </p>
+                          </div>
+
+                          {coords.accuracy > (office?.radius_meters || 100) / 2 && (
+                            <div className="col-span-2 p-2 bg-warning/5 border border-warning/20 rounded-lg flex items-start gap-2">
+                              <AlertTriangle className="h-3 w-3 text-warning shrink-0 mt-0.5" />
+                              <p className="text-[9px] font-medium text-warning-foreground leading-tight uppercase">
+                                Warning: Poor GPS accuracy. Your device location may be unreliable.
+                              </p>
+                            </div>
+                          )}
+
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={handleCheckIn}
+                            className="col-span-2 h-7 text-[10px] font-bold uppercase tracking-widest border border-dashed border-primary/20 hover:bg-primary/5 mt-2"
+                          >
+                            <RefreshCw className="h-3 w-3 mr-2" />
+                            Recalibrate Device GPS
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="py-4 flex flex-col items-center justify-center gap-2">
+                           <RefreshCw className="h-4 w-4 animate-spin text-primary/40" />
+                           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Detecting Location...</p>
+                        </div>
+                      )}
+                    </div>
                   </>
                 )}
               </div>

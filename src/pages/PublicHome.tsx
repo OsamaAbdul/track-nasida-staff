@@ -57,7 +57,7 @@ export default function PublicHome() {
         .from("office_locations")
         .select("*")
         .eq('is_active', true)
-        .order('created_at', { ascending: false })
+        .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
       return data;
