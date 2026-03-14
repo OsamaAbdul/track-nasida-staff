@@ -1,6 +1,6 @@
 # Nasida Attend: Next-Gen AI Attendance System
 
-#### An enterprise-grade attendance solution powered by Face Recognition, Geographic Fencing, and Interactive Liveness Detection.
+#### An enterprise-grade attendance solution powered by Face Recognition and Geographic Fencing.
 
 ---
 
@@ -10,11 +10,6 @@
 *   **Precision Matching**: High-accuracy face identification using pgvector and face-api.js.
 *   **Sub-Second Enrollment**: Enroll users in seconds with a few frames.
 *   **Similarity Enforcement**: Adjustable match thresholds to eliminate false positives.
-
-### Interactive Liveness Detection (Anti-Spoofing)
-*   **Live Proof-of-Life**: Prevents photo and screen-capture fraud.
-*   **Head-Turn Challenge**: Interactive prompts ensure the user is a real, 3D person.
-*   **Auto-Capture**: Seamlessly records attendance only after liveness is verified.
 
 ### Geofencing & Location Awareness
 *   **Precision Guarding**: Configurable office radii (meters) to ensure physical presence.
@@ -75,7 +70,7 @@ Run the provided SQL scripts in your Supabase SQL Editor to initialize:
 ---
 
 ## Design Philosophy
-Nasida Attend is built with a focus on Premium User Experience. From the smooth CSS-only splash screens to the interactive AI-guided capture, every interaction is designed to feel fast, secure, and state-of-the-art.
+Nasida Attend is built with a focus on Premium User Experience. From the smooth CSS-only splash screens to the simplified AI-guided capture, every interaction is designed to feel fast, secure, and state-of-the-art.
 
 ---
 *Built for High-Stakes Attendance.*
