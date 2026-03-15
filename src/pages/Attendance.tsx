@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import FaceCapture from "@/components/FaceCapture";
 import * as faceapi from 'face-api.js';
+import { calculateHaversineDistance } from "@/lib/geoUtils";
 
 export default function Attendance() {
   const { user, profile } = useAuth();
@@ -43,24 +44,9 @@ export default function Attendance() {
   const todayStart = startOfDay(today).toISOString();
   const todayEnd = endOfDay(today).toISOString();
 
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371000; // Earth's radius in meters
-    const φ1 = (lat1 * Math.PI) / 180;
-    const φ2 = (lat2 * Math.PI) / 180;
-    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-
-    const a =
-      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-      Math.cos(φ1) * Math.cos(φ2) *
-      Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c; // Distance in meters
-  };
 
   const distanceMeters = coords && office?.latitude && office?.longitude
-    ? calculateDistance(coords.lat, coords.lng, office.latitude, office.longitude)
+    ? calculateHaversineDistance(coords.lat, coords.lng, office.latitude, office.longitude)
     : null;
 
   const isInRange = distanceMeters !== null && office?.radius_meters
@@ -108,11 +94,29 @@ export default function Attendance() {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
           timeout: 10000,
+          maximumAge: 0,
         });
       });
 
       const { latitude, longitude, accuracy } = position.coords;
+      
+      // Validate GPS Accuracy
+      if (accuracy > 50) {
+        throw new Error("Your GPS signal is weak. Please move to an open area and try again.");
+      }
+
       setCoords({ lat: latitude, lng: longitude, accuracy });
+
+      // Debug Logging
+      console.log("Attendance Attempt Debug Info:");
+      console.log(`Admin Location: { lat: ${office?.latitude}, lng: ${office?.longitude} }`);
+      console.log(`User Location: { lat: ${latitude}, lng: ${longitude} }`);
+      console.log(`GPS Accuracy: ${accuracy} meters`);
+      if (office?.latitude && office?.longitude) {
+        const dist = calculateHaversineDistance(latitude, longitude, office.latitude, office.longitude);
+        console.log(`Distance Calculated: ${dist} meters`);
+        console.log(`Allowed Radius: ${office.radius_meters} meters`);
+      }
 
       if (profile?.face_enrolled) {
         setShowFaceCapture(true);

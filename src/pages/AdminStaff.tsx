@@ -262,19 +262,32 @@ export default function AdminStaff() {
                           onClick={() => {
                             navigator.geolocation.getCurrentPosition(
                               (pos) => {
-                                setOfficeForm(prev => ({ ...prev, lat: pos.coords.latitude, lng: pos.coords.longitude }));
-                                if (pos.coords.accuracy > 50) {
+                                const { latitude, longitude, accuracy } = pos.coords;
+                                
+                                // Validate GPS Accuracy for Admin
+                                if (accuracy > 50) {
                                   toast({ 
-                                    title: "Low Accuracy Warning", 
-                                    description: `Your current device is only accurate to ±${Math.round(pos.coords.accuracy)}m. Setting coordinates here might cause \"Out of Range\" errors on phones.`,
-                                    variant: "warning" as any
+                                    title: "Weak GPS Signal", 
+                                    description: `Your GPS signal is weak (±${Math.round(accuracy)}m). Please move to an open area and try again for better precision.`,
+                                    variant: "destructive"
                                   });
-                                } else {
-                                  toast({ title: "Coordinates Detected", description: "Office location updated with current GPS." });
+                                  return;
                                 }
+
+                                setOfficeForm(prev => ({ ...prev, lat: latitude, lng: longitude }));
+                                toast({ title: "Coordinates Detected", description: "Office location updated with current GPS." });
+                                
+                                // Debug Logging for Admin
+                                console.log("Admin Coordinate Detection Debug:");
+                                console.log(`Detected Location: { lat: ${latitude}, lng: ${longitude} }`);
+                                console.log(`GPS Accuracy: ${accuracy} meters`);
                               },
                               (err) => toast({ title: "Portal Error", description: "Enable location access to detect coordinates.", variant: "destructive" }),
-                              { enableHighAccuracy: true }
+                              { 
+                                enableHighAccuracy: true, 
+                                timeout: 10000, 
+                                maximumAge: 0 
+                              }
                             );
                           }}
                         >
@@ -365,7 +378,7 @@ export default function AdminStaff() {
                       .from("office_locations")
                       .update({
                         name: officeForm.name,
-                        radius_meters: officeForm.radius_meters,
+                        radius_meters: Math.max(50, officeForm.radius_meters),
                         work_start: officeForm.work_start,
                         work_end: officeForm.work_end,
                         latitude: officeForm.lat,
@@ -390,7 +403,7 @@ export default function AdminStaff() {
                   <Button onClick={async () => {
                     const { error } = await supabase.from("office_locations").insert({
                       name: "Main Office",
-                      radius_meters: 100,
+                      radius_meters: Math.max(50, 100),
                       work_start: "09:00",
                       work_end: "18:00",
                       is_active: true,
